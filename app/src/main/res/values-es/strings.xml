@@ -53,7 +53,11 @@
     <string name="resume_settings">Configuraciones de reanudación</string>
     <string name="enable_resume_feature">Habilitar reanudación desde la última imagen vista</string>
     <string name="resume_feature_description">Cuando está habilitado, la aplicación recordará la última imagen que viste</string>
-    <string name="auto_scroll">Desplazamiento automático</string>
-    <string name="auto_scroll_started">Desplazamiento automático iniciado</string>
-    <string name="auto_scroll_stopped">Desplazamiento automático detenido</string>
+    <string name="auto_scroll">Presentación de diapositivas</string>
+    <string name="auto_scroll_started">Presentación iniciada</string>
+    <string name="auto_scroll_stopped">Presentación detenida</string>
+    <string name="slideshow_paused">Presentación pausada</string>
+    <string name="slideshow_resumed">Presentación reanudada</string>
+    <string name="slideshow_completed">Presentación completada</string>
+    <string name="slideshow_need_more_images">Se necesita más de una imagen para la presentación</string>
 </resources>

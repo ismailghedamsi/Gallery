@@ -56,7 +56,11 @@
     <string name="resume_settings">Resume Settings</string>
     <string name="enable_resume_feature">Enable resume from last viewed image</string>
     <string name="resume_feature_description">When enabled, the app will remember the last image you viewed</string>
-    <string name="auto_scroll">Auto Scroll</string>
-    <string name="auto_scroll_started">Auto scroll started</string>
-    <string name="auto_scroll_stopped">Auto scroll stopped</string>
+    <string name="auto_scroll">Slideshow</string>
+    <string name="auto_scroll_started">Slideshow started</string>
+    <string name="auto_scroll_stopped">Slideshow stopped</string>
+    <string name="slideshow_paused">Slideshow paused</string>
+    <string name="slideshow_resumed">Slideshow resumed</string>
+    <string name="slideshow_completed">Slideshow completed</string>
+    <string name="slideshow_need_more_images">Need more than one image for slideshow</string>
 </resources>

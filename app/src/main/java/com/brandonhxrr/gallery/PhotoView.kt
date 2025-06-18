@@ -57,10 +57,12 @@ class PhotoView : AppCompatActivity() {
     private lateinit var btnShare: ImageButton
     private lateinit var btnMenu: ImageButton
     private lateinit var btnPlayPause: FloatingActionButton
+    private lateinit var btnPlayPauseToolbar: ImageButton
     var position: Int = 0
     private var autoScrollJob: Job? = null
     private var isAutoScrolling = false
     private val autoScrollDelayMs = 3000L // 3 seconds between images
+    private var isPaused = false // Track if slideshow is paused
     private lateinit var windowInsetsController : WindowInsetsControllerCompat
     private lateinit var operation: String
     private lateinit var currentFile: File
@@ -100,15 +102,11 @@ class PhotoView : AppCompatActivity() {
         btnShare = findViewById(R.id.btn_share)
         btnMenu = findViewById(R.id.btn_menu)
         btnPlayPause = findViewById(R.id.btn_play_pause)
+        btnPlayPauseToolbar = findViewById(R.id.btn_play_pause_toolbar)
         btnBackToMain = findViewById(R.id.btn_back_to_main)
         
-        // Make auto-scroll button always visible and prominent
-        btnPlayPause.visibility = View.VISIBLE
-        btnPlayPause.setImageResource(R.drawable.ic_play)
-        btnPlayPause.alpha = 0.9f // Make it slightly translucent but visible
-        btnPlayPause.scaleX = 1.1f // Make it slightly larger
-        btnPlayPause.scaleY = 1.1f
-        btnPlayPause.bringToFront() // Ensure it's on top
+        // Setup slideshow control button in toolbar - always visible and prominent
+        setupSlideshowButton()
 
         toolbar = findViewById(R.id.toolbar)
         val params = toolbar.layoutParams as ViewGroup.MarginLayoutParams
@@ -193,8 +191,8 @@ class PhotoView : AppCompatActivity() {
             showSubmenu(it, R.menu.menu_submenu)
         }
         
-        btnPlayPause.setOnClickListener {
-            toggleAutoScroll()
+        btnPlayPauseToolbar.setOnClickListener {
+            toggleSlideshow()
         }
 
         intentSenderLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
@@ -483,11 +481,144 @@ class PhotoView : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.auto_scroll_stopped), Toast.LENGTH_SHORT).show()
     }
 
+    private fun setupSlideshowButton() {
+        // Setup toolbar slideshow button - bigger and prominently positioned
+        btnPlayPauseToolbar.setImageResource(R.drawable.ic_play)
+        btnPlayPauseToolbar.alpha = 1.0f // Full opacity for visibility
+        
+        // Set blue color for visibility on white background
+        btnPlayPauseToolbar.setColorFilter(getColor(R.color.md_theme_dark_primary))
+        
+        // Add subtle animation when button appears
+        btnPlayPauseToolbar.animate()
+            .alpha(1.0f)
+            .setDuration(300)
+            .start()
+    }
+    
+    private fun toggleSlideshow() {
+        if (isAutoScrolling) {
+            pauseSlideshow()
+        } else if (isPaused) {
+            resumeSlideshow()
+        } else {
+            startSlideshow()
+        }
+    }
+    
+    private fun startSlideshow() {
+        if (media == null || media!!.size <= 1) {
+            Toast.makeText(this, getString(R.string.slideshow_need_more_images), Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        isAutoScrolling = true
+        isPaused = false
+        updateSlideshowButton()
+        Toast.makeText(this, getString(R.string.auto_scroll_started), Toast.LENGTH_SHORT).show()
+        
+        autoScrollJob = lifecycleScope.launch {
+            while (isAutoScrolling && position < media!!.size - 1) {
+                delay(autoScrollDelayMs)
+                if (isAutoScrolling) {
+                    runOnUiThread {
+                        viewPager.currentItem = position + 1
+                    }
+                }
+            }
+            // Slideshow finished (reached end) or was stopped
+            if (isAutoScrolling) {
+                stopSlideshow()
+                Toast.makeText(this@PhotoView, getString(R.string.slideshow_completed), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    private fun pauseSlideshow() {
+        isAutoScrolling = false
+        isPaused = true
+        autoScrollJob?.cancel()
+        updateSlideshowButton()
+        Toast.makeText(this, getString(R.string.slideshow_paused), Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun resumeSlideshow() {
+        if (position >= media!!.size - 1) {
+            // If at the end, restart from current position or ask user
+            Toast.makeText(this, getString(R.string.slideshow_completed), Toast.LENGTH_SHORT).show()
+            isPaused = false
+            updateSlideshowButton()
+            return
+        }
+        
+        isAutoScrolling = true
+        isPaused = false
+        updateSlideshowButton()
+        Toast.makeText(this, getString(R.string.slideshow_resumed), Toast.LENGTH_SHORT).show()
+        
+        autoScrollJob = lifecycleScope.launch {
+            while (isAutoScrolling && position < media!!.size - 1) {
+                delay(autoScrollDelayMs)
+                if (isAutoScrolling) {
+                    runOnUiThread {
+                        viewPager.currentItem = position + 1
+                    }
+                }
+            }
+            if (isAutoScrolling) {
+                stopSlideshow()
+                Toast.makeText(this@PhotoView, getString(R.string.slideshow_completed), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    private fun stopSlideshow() {
+        isAutoScrolling = false
+        isPaused = false
+        autoScrollJob?.cancel()
+        autoScrollJob = null
+        updateSlideshowButton()
+        Toast.makeText(this, getString(R.string.auto_scroll_stopped), Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun updateSlideshowButton() {
+        when {
+            isAutoScrolling -> {
+                btnPlayPauseToolbar.setImageResource(R.drawable.ic_pause)
+                btnPlayPauseToolbar.setColorFilter(getColor(R.color.md_theme_light_primary)) // Brighter blue when playing
+                btnPlayPauseToolbar.alpha = 1.0f
+                // Pulsing animation while playing
+                btnPlayPauseToolbar.animate()
+                    .scaleX(1.5f)
+                    .scaleY(1.5f)
+                    .setDuration(150)
+                    .withEndAction {
+                        btnPlayPauseToolbar.animate()
+                            .scaleX(1.3f)
+                            .scaleY(1.3f)
+                            .setDuration(150)
+                            .start()
+                    }
+                    .start()
+            }
+            isPaused -> {
+                btnPlayPauseToolbar.setImageResource(R.drawable.ic_play)
+                btnPlayPauseToolbar.setColorFilter(getColor(R.color.md_theme_light_inverseSurface)) // Gray when paused
+                btnPlayPauseToolbar.alpha = 0.8f // Dimmed when paused
+            }
+            else -> {
+                btnPlayPauseToolbar.setImageResource(R.drawable.ic_play)
+                btnPlayPauseToolbar.setColorFilter(getColor(R.color.md_theme_dark_primary)) // Blue when ready
+                btnPlayPauseToolbar.alpha = 1.0f // Normal state
+            }
+        }
+    }
+
     override fun onPause() {
         super.onPause()
-        // Stop auto-scroll when activity is paused
+        // Pause slideshow when activity is paused
         if (isAutoScrolling) {
-            stopAutoScroll()
+            pauseSlideshow()
         }
     }
 }

@@ -91,6 +91,19 @@
                     android:src="@drawable/ic_delete" />
 
                 <ImageButton
+                    android:id="@+id/btn_play_pause_toolbar"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.2"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/auto_scroll"
+                    android:src="@drawable/ic_play"
+                    android:scaleX="1.3"
+                    android:scaleY="1.3"
+                    android:padding="8dp"
+                    android:tint="@color/md_theme_dark_primary" />
+
+                <ImageButton
                     android:id="@+id/btn_share"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
@@ -112,7 +125,7 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <!-- Floating play/pause button - prominently positioned -->
+    <!-- Hidden old floating button - using toolbar button now -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/btn_play_pause"
         android:layout_width="wrap_content"
@@ -121,7 +134,7 @@
         android:contentDescription="@string/auto_scroll"
         android:src="@drawable/ic_play"
         android:elevation="12dp"
-        android:visibility="visible"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@+id/toolbar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintVertical_bias="1.0"
