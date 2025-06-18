@@ -35,9 +35,76 @@ fun sortImagesByFolder(files: List<File>): Map<File, List<File>> {
 fun getImagesFromAlbum(folder: String): List<Photo> {
     return File(folder)
         .listFiles { file -> file.isFile && fileExtensions.contains(file.extension.lowercase()) }
-        ?.sortedWith(compareByDescending { it.lastModified() })
+        ?.sortedWith(naturalOrderComparator())
         ?.map { file -> Photo(path = file.absolutePath, position = 0, selected = false) }
         ?: emptyList()
+}
+
+// Natural sorting comparator for numerical ordering (1, 2, 3, ..., 10, 11, etc.)
+fun naturalOrderComparator(): Comparator<File> {
+    return Comparator { file1, file2 ->
+        val name1 = file1.nameWithoutExtension
+        val name2 = file2.nameWithoutExtension
+        
+        // Extract numbers and non-numeric parts
+        val parts1 = splitAlphaNumeric(name1)
+        val parts2 = splitAlphaNumeric(name2)
+        
+        val minLength = minOf(parts1.size, parts2.size)
+        
+        for (i in 0 until minLength) {
+            val part1 = parts1[i]
+            val part2 = parts2[i]
+            
+            val isNum1 = part1.all { it.isDigit() }
+            val isNum2 = part2.all { it.isDigit() }
+            
+            when {
+                isNum1 && isNum2 -> {
+                    val num1 = part1.toLongOrNull() ?: 0
+                    val num2 = part2.toLongOrNull() ?: 0
+                    val result = num1.compareTo(num2)
+                    if (result != 0) return@Comparator result
+                }
+                isNum1 && !isNum2 -> return@Comparator -1
+                !isNum1 && isNum2 -> return@Comparator 1
+                else -> {
+                    val result = part1.compareTo(part2, ignoreCase = true)
+                    if (result != 0) return@Comparator result
+                }
+            }
+        }
+        
+        parts1.size.compareTo(parts2.size)
+    }
+}
+
+// Split string into numeric and non-numeric parts
+fun splitAlphaNumeric(input: String): List<String> {
+    val result = mutableListOf<String>()
+    var currentPart = StringBuilder()
+    var isCurrentNumeric: Boolean? = null
+    
+    for (char in input) {
+        val isDigit = char.isDigit()
+        
+        if (isCurrentNumeric == null || isCurrentNumeric == isDigit) {
+            currentPart.append(char)
+            isCurrentNumeric = isDigit
+        } else {
+            if (currentPart.isNotEmpty()) {
+                result.add(currentPart.toString())
+            }
+            currentPart = StringBuilder(char.toString())
+            isCurrentNumeric = isDigit
+        }
+    }
+    
+    if (currentPart.isNotEmpty()) {
+        result.add(currentPart.toString())
+    }
+    
+    return result
 }
 
 fun getAllImages(context: Context): List<File> {
@@ -49,6 +116,27 @@ fun getAllImages(context: Context): List<File> {
     val videoList = queryUri(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, null, null, sortOrderVideos)
         .use { it?.getResultsFromCursor() ?: listOf() }
     return videoList + imageList
+}
+
+// Cache for media list with timestamp
+private var cachedMedia: List<Photo>? = null
+private var cacheTimestamp: Long = 0
+private const val CACHE_VALIDITY_MS = 30 * 1000L // 30 seconds
+
+fun getCachedMediaOrLoad(context: Context): List<Photo> {
+    val currentTime = System.currentTimeMillis()
+    
+    // Return cached data if it's still valid
+    if (cachedMedia != null && (currentTime - cacheTimestamp) < CACHE_VALIDITY_MS) {
+        return cachedMedia!!
+    }
+    
+    // Load fresh data and cache it
+    val freshMedia = getAllImagesAndVideosSortedByRecent(context)
+    cachedMedia = freshMedia
+    cacheTimestamp = currentTime
+    
+    return freshMedia
 }
 
 fun getAllImagesAndVideosSortedByRecent(context: Context): List<Photo> {

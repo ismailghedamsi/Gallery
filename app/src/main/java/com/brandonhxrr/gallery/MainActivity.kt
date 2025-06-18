@@ -24,6 +24,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.brandonhxrr.gallery.adapter.photo.PhotoAdapter
 import com.brandonhxrr.gallery.databinding.ActivityMainBinding
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import android.view.Menu
+import android.view.MenuItem
+import android.widget.CheckBox
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -53,21 +57,13 @@ class MainActivity : AppCompatActivity() {
         selectableToolbar = findViewById(R.id.selectable_toolbar)
         deleteButton = findViewById(R.id.btn_delete)
         shareButton = findViewById(R.id.btn_share)
+        
+        setSupportActionBar(toolbar)
 
-        bottomNavView.setItemOnTouchListener(R.id.menu_photos) { v, _ ->
-            if (navController.currentDestination?.id == R.id.SecondFragment) {
-                navController.popBackStack()
-            } else if (navController.currentDestination?.id == R.id.ViewAlbumFragment) {
-                navController.popBackStack(R.id.FirstFragment, false)
-            }
-            v.performClick()
-            true
-        }
+        // Photos option removed - only albums view available
 
         bottomNavView.setItemOnTouchListener(R.id.menu_album) { v, _ ->
-            if (navController.currentDestination?.id == R.id.FirstFragment) {
-                navController.navigate(R.id.action_FirstFragment_to_SecondFragment)
-            } else if (navController.currentDestination?.id == R.id.ViewAlbumFragment) {
+            if (navController.currentDestination?.id == R.id.ViewAlbumFragment) {
                 navController.popBackStack()
             }
             v.performClick()
@@ -80,8 +76,8 @@ class MainActivity : AppCompatActivity() {
                     disableSelectable()
                 }else {
                     when(navController.currentDestination?.id) {
-                        R.id.SecondFragment -> {
-                            bottomNavView.selectedItemId = R.id.menu_photos
+                        R.id.ViewAlbumFragment -> {
+                            bottomNavView.selectedItemId = R.id.menu_album
                         }
                     }
                     navController.navigateUp()
@@ -133,5 +129,114 @@ class MainActivity : AppCompatActivity() {
         selectable = false
         (recyclerView.adapter as PhotoAdapter).resetItemsSelected()
         recyclerView.adapter?.notifyDataSetChanged()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_toolbar, menu)
+        updateResumeMenuVisibility(menu)
+        return true
+    }
+
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        updateResumeMenuVisibility(menu)
+        return super.onPrepareOptionsMenu(menu)
+    }
+
+    private fun updateResumeMenuVisibility(menu: Menu) {
+        val resumeItem = menu.findItem(R.id.menu_resume)
+        resumeItem?.isVisible = LastImagePreferences.isResumeEnabled(this) && 
+                                 LastImagePreferences.hasLastImage(this)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.menu_resume -> {
+                resumeLastImage()
+                true
+            }
+            R.id.menu_settings -> {
+                showResumeSettings()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun resumeLastImage() {
+        if (!LastImagePreferences.isResumeEnabled(this)) {
+            Toast.makeText(this, getString(R.string.resume_feature_disabled), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (!LastImagePreferences.hasLastImage(this)) {
+            Toast.makeText(this, getString(R.string.no_last_image), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val lastImagePath = LastImagePreferences.getLastImagePath(this)
+        val lastImagePosition = LastImagePreferences.getLastImagePosition(this)
+
+        if (lastImagePath == null || !File(lastImagePath).exists()) {
+            Toast.makeText(this, getString(R.string.last_image_not_found), Toast.LENGTH_SHORT).show()
+            LastImagePreferences.clearLastImage(this)
+            invalidateOptionsMenu()
+            return
+        }
+
+        // Get the album folder containing the last image
+        val lastImageFile = File(lastImagePath)
+        val albumPath = lastImageFile.parent ?: return
+        
+        // Get images from the album containing the last image
+        lifecycleScope.launch {
+            val albumImages = getImagesFromAlbum(albumPath)
+            val currentPosition = albumImages.indexOfFirst { it.path == lastImagePath }
+            
+            if (currentPosition >= 0) {
+                // Launch PhotoView with the correct position within the album
+                val intent = Intent(this@MainActivity, PhotoView::class.java)
+                val gson = com.google.gson.Gson()
+                val limit = if (albumImages.size > 1000) 1000 else albumImages.size
+                val data = gson.toJson(albumImages.subList(0, limit))
+                
+                intent.putExtra("path", lastImagePath)
+                intent.putExtra("data", data)
+                intent.putExtra("position", currentPosition)
+                intent.putExtra("auto_resumed", true)
+                startActivity(intent)
+            } else {
+                Toast.makeText(this@MainActivity, getString(R.string.last_image_not_found), Toast.LENGTH_SHORT).show()
+                LastImagePreferences.clearLastImage(this@MainActivity)
+                invalidateOptionsMenu()
+            }
+        }
+    }
+
+    private fun showResumeSettings() {
+        val view = layoutInflater.inflate(android.R.layout.simple_list_item_multiple_choice, null)
+        val checkBox = CheckBox(this)
+        checkBox.text = getString(R.string.enable_resume_feature)
+        checkBox.isChecked = LastImagePreferences.isResumeEnabled(this)
+        
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.resume_settings))
+            .setMessage(getString(R.string.resume_feature_description))
+            .setView(checkBox)
+            .setPositiveButton(getString(R.string.accept)) { _, _ ->
+                LastImagePreferences.setResumeEnabled(this, checkBox.isChecked)
+                invalidateOptionsMenu()
+                Toast.makeText(this, 
+                    if (checkBox.isChecked) "Resume feature enabled" else "Resume feature disabled", 
+                    Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(getString(R.string.cancel)) { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        invalidateOptionsMenu()
     }
 }

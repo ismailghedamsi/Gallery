@@ -33,7 +33,14 @@ class PhotoViewHolder(
 
         val extension = File(photoModel.path).extension.lowercase()
 
-        glide.load(photoModel.path).centerCrop().into(image)
+        // Clear previous image to prevent recycling issues
+        image.setImageDrawable(null)
+        
+        // Optimized image loading with better performance
+        glide.load(photoModel.path)
+            .centerCrop()
+            .thumbnail(0.1f) // Load small thumbnail first
+            .into(image)
 
         if (selectable) {
             fileSelected.visibility = View.VISIBLE

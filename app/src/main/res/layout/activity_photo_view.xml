@@ -31,6 +31,16 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0">
+        
+        <!-- Back button for auto-resumed images -->
+        <ImageButton
+            android:id="@+id/btn_back_to_main"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_close"
+            android:src="@drawable/ic_back"
+            android:visibility="gone" />
         <androidx.appcompat.widget.LinearLayoutCompat
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -70,6 +80,7 @@
                 android:layout_height="match_parent"
                 android:layout_weight="0.5">
 
+
                 <ImageButton
                     android:id="@+id/btn_delete"
                     android:layout_width="0dp"
@@ -100,5 +111,23 @@
         </androidx.appcompat.widget.LinearLayoutCompat>
 
     </androidx.appcompat.widget.Toolbar>
+
+    <!-- Floating play/pause button - prominently positioned -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btn_play_pause"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:contentDescription="@string/auto_scroll"
+        android:src="@drawable/ic_play"
+        android:elevation="12dp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@+id/toolbar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintVertical_bias="1.0"
+        app:fabSize="normal"
+        app:backgroundTint="@color/md_theme_dark_primary"
+        app:tint="@android:color/white"
+        app:borderWidth="0dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

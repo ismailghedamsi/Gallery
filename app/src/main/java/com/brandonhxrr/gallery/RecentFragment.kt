@@ -83,17 +83,23 @@ class RecentFragment : Fragment() {
     private fun initRecyclerView(context:Context) {
         recyclerView = binding.gridRecyclerView
 
-
+        // Optimize Glide for better performance
         val glide = Glide.with(this)
         builder = glide.asBitmap()
+            .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
+            .skipMemoryCache(false)
+            .dontTransform()
 
-        media = getAllImagesAndVideosSortedByRecent(context)
+        // Use cached media if available, otherwise load fresh
+        media = getCachedMediaOrLoad(context)
 
         myAdapter = PhotoAdapter(media, builder) { show, items ->
             showDeleteMenu(show, items)
         }
         recyclerView.itemAnimator = DefaultItemAnimator()
         recyclerView.isNestedScrollingEnabled = false
+        recyclerView.setHasFixedSize(true) // Performance optimization
+        recyclerView.setItemViewCacheSize(20) // Cache more items for smoother scrolling
         recyclerView.layoutManager = GridLayoutManager(context, 4)
         recyclerView.adapter = myAdapter
 
@@ -146,6 +152,8 @@ class RecentFragment : Fragment() {
         selectableToolbar.menu.clear()
         deleteButton = selectableToolbar.findViewById(R.id.btn_delete)
         selectableToolbar.inflateMenu(R.menu.menu_selectable)
+        
+        // Note: Auto-resume logic has been moved to Splash activity for app launches only
         selectableToolbar.setOnMenuItemClickListener {menuItem ->
             when(menuItem.itemId){
                 R.id.menu_copy -> {
@@ -339,6 +347,49 @@ class RecentFragment : Fragment() {
                     showDeleteMenu(show, items)
                 }
                 recyclerView.swapAdapter(myAdapter, false)
+            }
+        }
+    }
+
+    private fun checkForAutoResume() {
+        // Only auto-resume if the feature is enabled and there's a last image
+        if (!LastImagePreferences.isResumeEnabled(requireContext()) || 
+            !LastImagePreferences.hasLastImage(requireContext())) {
+            return
+        }
+
+        val lastImagePath = LastImagePreferences.getLastImagePath(requireContext())
+        val lastImageTimestamp = LastImagePreferences.getLastImageTimestamp(requireContext())
+        
+        // Only auto-resume if the last image was viewed recently (within 24 hours)
+        val twentyFourHoursAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
+        if (lastImageTimestamp < twentyFourHoursAgo) {
+            return
+        }
+
+        if (lastImagePath == null || !File(lastImagePath).exists()) {
+            LastImagePreferences.clearLastImage(requireContext())
+            return
+        }
+
+        // Launch PhotoView with the last image
+        lifecycleScope.launch {
+            val allImages = getAllImagesAndVideosSortedByRecent(requireContext())
+            val currentPosition = allImages.indexOfFirst { it.path == lastImagePath }
+            
+            if (currentPosition >= 0) {
+                val intent = Intent(requireContext(), PhotoView::class.java)
+                val gson = com.google.gson.Gson()
+                val limit = if (allImages.size > 1000) 1000 else allImages.size
+                val data = gson.toJson(allImages.subList(0, limit))
+                
+                intent.putExtra("path", lastImagePath)
+                intent.putExtra("data", data)
+                intent.putExtra("position", currentPosition)
+                intent.putExtra("auto_resumed", true)
+                startActivity(intent)
+            } else {
+                LastImagePreferences.clearLastImage(requireContext())
             }
         }
     }

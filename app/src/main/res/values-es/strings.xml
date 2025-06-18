@@ -45,4 +45,15 @@
     <string name="permission_denied_exp">Se requiere permiso para acceder al almacenamiento para continuar</string>
     <string name="multi_items">%s elementos</string>
     <string name="single_item">1 elemento</string>
+    <string name="resume_last_image">Reanudar última imagen</string>
+    <string name="settings">Configuraciones</string>
+    <string name="resume_feature_disabled">Función de reanudación deshabilitada</string>
+    <string name="no_last_image">No se encontró la última imagen vista</string>
+    <string name="last_image_not_found">La última imagen vista ya no existe</string>
+    <string name="resume_settings">Configuraciones de reanudación</string>
+    <string name="enable_resume_feature">Habilitar reanudación desde la última imagen vista</string>
+    <string name="resume_feature_description">Cuando está habilitado, la aplicación recordará la última imagen que viste</string>
+    <string name="auto_scroll">Desplazamiento automático</string>
+    <string name="auto_scroll_started">Desplazamiento automático iniciado</string>
+    <string name="auto_scroll_stopped">Desplazamiento automático detenido</string>
 </resources>

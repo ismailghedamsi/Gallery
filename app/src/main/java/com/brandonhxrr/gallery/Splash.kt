@@ -65,9 +65,83 @@ open class Splash : AppCompatActivity() {
         val folders: HashMap<File, List<File>> = sortImagesByFolder(getAllImages(this)) as HashMap<File, List<File>>
         albumes = folders
 
-        val intent = Intent(this, MainActivity::class.java)
-        startActivity(intent)
-        finish()
+        // Check if we should auto-resume from last image
+        if (shouldAutoResumeFromLastImage()) {
+            autoResumeFromLastImage()
+        } else {
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
+    }
+
+    private fun shouldAutoResumeFromLastImage(): Boolean {
+        // Check if this is a true app launch (not return from another activity)
+        if (!isTaskRoot) {
+            return false
+        }
+        
+        if (!LastImagePreferences.isResumeEnabled(this) || 
+            !LastImagePreferences.hasLastImage(this)) {
+            return false
+        }
+
+        val lastImageTimestamp = LastImagePreferences.getLastImageTimestamp(this)
+        // Only auto-resume if the last image was viewed recently (within 1 hour)
+        val oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000)
+        return lastImageTimestamp > oneHourAgo
+    }
+
+    private fun autoResumeFromLastImage() {
+        val lastImagePath = LastImagePreferences.getLastImagePath(this)
+        
+        if (lastImagePath == null || !File(lastImagePath).exists()) {
+            LastImagePreferences.clearLastImage(this)
+            // Fall back to normal main activity
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // Get the album folder containing the last image
+        val lastImageFile = java.io.File(lastImagePath)
+        val albumPath = lastImageFile.parent ?: return
+        
+        // Get images from the album containing the last image
+        val albumImages = getImagesFromAlbum(albumPath)
+        val currentPosition = albumImages.indexOfFirst { it.path == lastImagePath }
+        
+        if (currentPosition >= 0) {
+            val intent = Intent(this, PhotoView::class.java)
+            val gson = com.google.gson.Gson()
+            val limit = if (albumImages.size > 1000) 1000 else albumImages.size
+            
+            // If the last image position is beyond our limit, we need to handle it
+            val limitedImages = albumImages.subList(0, limit)
+            val adjustedPosition = if (currentPosition >= limit) {
+                // Find the image in the limited list, or fallback to 0
+                val positionInLimitedList = limitedImages.indexOfFirst { it.path == lastImagePath }
+                if (positionInLimitedList >= 0) positionInLimitedList else 0
+            } else {
+                currentPosition
+            }
+            
+            val data = gson.toJson(limitedImages)
+            
+            intent.putExtra("path", lastImagePath)
+            intent.putExtra("data", data)
+            intent.putExtra("position", adjustedPosition)
+            intent.putExtra("auto_resumed", true)
+            startActivity(intent)
+            finish()
+        } else {
+            LastImagePreferences.clearLastImage(this)
+            // Fall back to normal main activity
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.R)

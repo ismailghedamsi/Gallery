@@ -16,6 +16,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +38,8 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -53,7 +56,11 @@ class PhotoView : AppCompatActivity() {
     private lateinit var btnDelete: ImageButton
     private lateinit var btnShare: ImageButton
     private lateinit var btnMenu: ImageButton
+    private lateinit var btnPlayPause: FloatingActionButton
     var position: Int = 0
+    private var autoScrollJob: Job? = null
+    private var isAutoScrolling = false
+    private val autoScrollDelayMs = 3000L // 3 seconds between images
     private lateinit var windowInsetsController : WindowInsetsControllerCompat
     private lateinit var operation: String
     private lateinit var currentFile: File
@@ -62,6 +69,9 @@ class PhotoView : AppCompatActivity() {
     private val PERMISSION_PREFS_NAME = "permissions"
     private val SD_CARD_PERMISSION_GRANTED_KEY = "sd_card_permission_granted"
     private lateinit var destinationPath: String
+    private lateinit var btnBackToMain: ImageButton
+    private var isAutoResumed = false
+    private var isNavigatingBack = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +79,19 @@ class PhotoView : AppCompatActivity() {
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
 
         setContentView(R.layout.activity_photo_view)
+        
+        // Handle back button to clear last image state
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Set flag to indicate we're navigating back
+                isNavigatingBack = true
+                // Clear last image immediately to prevent auto-resume
+                LastImagePreferences.clearLastImage(this@PhotoView)
+                finish()
+                // Add smooth transition
+                overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+            }
+        })
 
         photoName = findViewById(R.id.photo_name)
         photoDatetime = findViewById(R.id.photo_datetime)
@@ -76,6 +99,16 @@ class PhotoView : AppCompatActivity() {
         btnDelete = findViewById(R.id.btn_delete)
         btnShare = findViewById(R.id.btn_share)
         btnMenu = findViewById(R.id.btn_menu)
+        btnPlayPause = findViewById(R.id.btn_play_pause)
+        btnBackToMain = findViewById(R.id.btn_back_to_main)
+        
+        // Make auto-scroll button always visible and prominent
+        btnPlayPause.visibility = View.VISIBLE
+        btnPlayPause.setImageResource(R.drawable.ic_play)
+        btnPlayPause.alpha = 0.9f // Make it slightly translucent but visible
+        btnPlayPause.scaleX = 1.1f // Make it slightly larger
+        btnPlayPause.scaleY = 1.1f
+        btnPlayPause.bringToFront() // Ensure it's on top
 
         toolbar = findViewById(R.id.toolbar)
         val params = toolbar.layoutParams as ViewGroup.MarginLayoutParams
@@ -90,9 +123,33 @@ class PhotoView : AppCompatActivity() {
 
         val bundle = intent.extras
         position = bundle?.getInt("position")!!
+        isAutoResumed = bundle?.getBoolean("auto_resumed", false) ?: false
         val gson = Gson()
         val data = intent.getStringExtra("data")
         media = gson.fromJson(data, Array<Photo>::class.java).toList()
+        
+        // Safeguard: ensure position is within valid bounds
+        if (position >= media!!.size) {
+            position = 0 // Default to first image if position is out of bounds
+        }
+        
+        // Show back button if this was auto-resumed
+        if (isAutoResumed) {
+            btnBackToMain.visibility = View.VISIBLE
+            btnBackToMain.setOnClickListener {
+                // Set flag to indicate we're navigating back
+                isNavigatingBack = true
+                // Clear last image immediately to prevent auto-resume
+                LastImagePreferences.clearLastImage(this@PhotoView)
+                // Navigate back to main activity without restarting the task
+                val intent = Intent(this, MainActivity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                startActivity(intent)
+                finish()
+                // Add smooth transition
+                overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+            }
+        }
 
         viewPager = findViewById(R.id.viewPager)
         currentFile = File(media!![position].path)
@@ -103,6 +160,11 @@ class PhotoView : AppCompatActivity() {
                 position = pos
                 currentFile = File(media!![position].path)
                 setDateTime()
+                
+                // Save the last viewed image if resume feature is enabled
+                if (LastImagePreferences.isResumeEnabled(this@PhotoView)) {
+                    LastImagePreferences.saveLastImage(this@PhotoView, currentFile.absolutePath, pos)
+                }
             }
         })
 
@@ -130,6 +192,10 @@ class PhotoView : AppCompatActivity() {
         btnMenu.setOnClickListener {
             showSubmenu(it, R.menu.menu_submenu)
         }
+        
+        btnPlayPause.setOnClickListener {
+            toggleAutoScroll()
+        }
 
         intentSenderLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
             if(it.resultCode == RESULT_OK) {
@@ -144,8 +210,26 @@ class PhotoView : AppCompatActivity() {
         }
     }
     override fun onSupportNavigateUp(): Boolean {
+        // Set flag to indicate we're navigating back
+        isNavigatingBack = true
+        // Clear last image immediately to prevent auto-resume
+        LastImagePreferences.clearLastImage(this)
         onBackPressedDispatcher.onBackPressed()
         return true
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Save the last viewed image if resume feature is enabled
+        // But only if we're not navigating back (to prevent re-opening the same image)
+        if (LastImagePreferences.isResumeEnabled(this) && !isNavigatingBack) {
+            LastImagePreferences.saveLastImage(this, currentFile.absolutePath, position)
+        }
+        
+        // If we're navigating back, clear the last image to prevent auto-resume
+        if (isNavigatingBack) {
+            LastImagePreferences.clearLastImage(this)
+        }
     }
 
     @SuppressLint("RestrictedApi")
@@ -357,6 +441,53 @@ class PhotoView : AppCompatActivity() {
                 editor.apply()
                 copyToExternal(this, currentFile, destinationPath, operation == "MOVE", intentSenderLauncher)
             }
+        }
+    }
+
+    private fun toggleAutoScroll() {
+        if (isAutoScrolling) {
+            stopAutoScroll()
+        } else {
+            startAutoScroll()
+        }
+    }
+
+    private fun startAutoScroll() {
+        if (media == null || media!!.size <= 1) return
+        
+        isAutoScrolling = true
+        btnPlayPause.setImageResource(R.drawable.ic_pause)
+        Toast.makeText(this, getString(R.string.auto_scroll_started), Toast.LENGTH_SHORT).show()
+        
+        autoScrollJob = lifecycleScope.launch {
+            while (isAutoScrolling && position < media!!.size - 1) {
+                delay(autoScrollDelayMs)
+                if (isAutoScrolling) {
+                    runOnUiThread {
+                        viewPager.currentItem = position + 1
+                    }
+                }
+            }
+            // Auto-scroll finished (reached end)
+            if (isAutoScrolling) {
+                stopAutoScroll()
+            }
+        }
+    }
+
+    private fun stopAutoScroll() {
+        isAutoScrolling = false
+        autoScrollJob?.cancel()
+        autoScrollJob = null
+        btnPlayPause.setImageResource(R.drawable.ic_play)
+        Toast.makeText(this, getString(R.string.auto_scroll_stopped), Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Stop auto-scroll when activity is paused
+        if (isAutoScrolling) {
+            stopAutoScroll()
         }
     }
 }
