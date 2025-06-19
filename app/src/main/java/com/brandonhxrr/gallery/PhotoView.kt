@@ -74,6 +74,9 @@ class PhotoView : AppCompatActivity() {
     private lateinit var btnBackToMain: ImageButton
     private var isAutoResumed = false
     private var isNavigatingBack = false
+    private var allAlbums: List<Pair<File, List<Photo>>> = emptyList()
+    private var currentAlbumIndex = 0
+    private var isCrossFolderMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,6 +129,9 @@ class PhotoView : AppCompatActivity() {
         val data = intent.getStringExtra("data")
         media = gson.fromJson(data, Array<Photo>::class.java).toList()
         
+        // Initialize cross-folder navigation data
+        initializeCrossFolderData()
+        
         // Safeguard: ensure position is within valid bounds
         if (position >= media!!.size) {
             position = 0 // Default to first image if position is out of bounds
@@ -162,6 +168,17 @@ class PhotoView : AppCompatActivity() {
                 // Save the last viewed image if resume feature is enabled
                 if (LastImagePreferences.isResumeEnabled(this@PhotoView)) {
                     LastImagePreferences.saveLastImage(this@PhotoView, currentFile.absolutePath, pos)
+                }
+                
+                // Check if we've reached the end and should move to next folder
+                if (pos == media!!.size - 1 && isCrossFolderMode && !isAutoScrolling) {
+                    // Delay slightly to allow the user to see the last image
+                    lifecycleScope.launch {
+                        delay(500) // Half second delay
+                        if (position == media!!.size - 1) { // Double-check we're still at the end
+                            showNextFolderPrompt()
+                        }
+                    }
                 }
             }
         })
@@ -518,18 +535,31 @@ class PhotoView : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.auto_scroll_started), Toast.LENGTH_SHORT).show()
         
         autoScrollJob = lifecycleScope.launch {
-            while (isAutoScrolling && position < media!!.size - 1) {
+            while (isAutoScrolling) {
                 delay(autoScrollDelayMs)
                 if (isAutoScrolling) {
-                    runOnUiThread {
-                        viewPager.currentItem = position + 1
+                    if (position < media!!.size - 1) {
+                        // Move to next image in current album
+                        runOnUiThread {
+                            viewPager.currentItem = position + 1
+                        }
+                    } else {
+                        // Reached end of current album, try to move to next folder
+                        if (moveToNextFolder()) {
+                            // Successfully moved to next folder, continue slideshow
+                            continue
+                        } else {
+                            // No more folders, stop slideshow
+                            break
+                        }
                     }
                 }
             }
             // Slideshow finished (reached end) or was stopped
             if (isAutoScrolling) {
                 stopSlideshow()
-                Toast.makeText(this@PhotoView, getString(R.string.slideshow_completed), Toast.LENGTH_SHORT).show()
+                val message = if (isCrossFolderMode) getString(R.string.slideshow_all_folders_completed) else getString(R.string.slideshow_completed)
+                Toast.makeText(this@PhotoView, message, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -557,17 +587,30 @@ class PhotoView : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.slideshow_resumed), Toast.LENGTH_SHORT).show()
         
         autoScrollJob = lifecycleScope.launch {
-            while (isAutoScrolling && position < media!!.size - 1) {
+            while (isAutoScrolling) {
                 delay(autoScrollDelayMs)
                 if (isAutoScrolling) {
-                    runOnUiThread {
-                        viewPager.currentItem = position + 1
+                    if (position < media!!.size - 1) {
+                        // Move to next image in current album
+                        runOnUiThread {
+                            viewPager.currentItem = position + 1
+                        }
+                    } else {
+                        // Reached end of current album, try to move to next folder
+                        if (moveToNextFolder()) {
+                            // Successfully moved to next folder, continue slideshow
+                            continue
+                        } else {
+                            // No more folders, stop slideshow
+                            break
+                        }
                     }
                 }
             }
             if (isAutoScrolling) {
                 stopSlideshow()
-                Toast.makeText(this@PhotoView, getString(R.string.slideshow_completed), Toast.LENGTH_SHORT).show()
+                val message = if (isCrossFolderMode) getString(R.string.slideshow_all_folders_completed) else getString(R.string.slideshow_completed)
+                Toast.makeText(this@PhotoView, message, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -612,6 +655,93 @@ class PhotoView : AppCompatActivity() {
                 btnPlayPauseToolbar.alpha = 1.0f // Normal state
             }
         }
+    }
+
+    private fun initializeCrossFolderData() {
+        // Get all albums and their photos for cross-folder navigation
+        lifecycleScope.launch {
+            try {
+                val albums = albumes ?: return@launch
+                val albumList = mutableListOf<Pair<File, List<Photo>>>()
+                
+                // Sort albums by name for consistent order
+                val sortedAlbums = albums.toSortedMap(compareBy { it.name })
+                
+                for ((folder, _) in sortedAlbums) {
+                    val photosInAlbum = getImagesFromAlbum(folder.absolutePath)
+                    if (photosInAlbum.isNotEmpty()) {
+                        albumList.add(Pair(folder, photosInAlbum))
+                    }
+                }
+                
+                allAlbums = albumList
+                
+                // Find current album index
+                val currentImagePath = media?.get(position)?.path
+                if (currentImagePath != null) {
+                    val currentFolder = File(currentImagePath).parent
+                    currentAlbumIndex = allAlbums.indexOfFirst { it.first.absolutePath == currentFolder }
+                    if (currentAlbumIndex == -1) currentAlbumIndex = 0
+                }
+                
+                isCrossFolderMode = allAlbums.size > 1
+            } catch (e: Exception) {
+                // Fallback to single album mode
+                isCrossFolderMode = false
+            }
+        }
+    }
+    
+    private fun moveToNextFolder(): Boolean {
+        if (!isCrossFolderMode || currentAlbumIndex >= allAlbums.size - 1) {
+            return false // No more folders
+        }
+        
+        currentAlbumIndex++
+        val nextAlbum = allAlbums[currentAlbumIndex]
+        val nextAlbumPhotos = nextAlbum.second
+        
+        if (nextAlbumPhotos.isNotEmpty()) {
+            // Update media list with next album's photos
+            media = nextAlbumPhotos
+            position = 0 // Start from first image of next album
+            
+            // Update ViewPager
+            runOnUiThread {
+                viewPagerAdapter = ViewPagerAdapter(this@PhotoView, media!!)
+                viewPager.adapter = viewPagerAdapter
+                viewPager.currentItem = 0
+                currentFile = File(media!![0].path)
+                setDateTime()
+                
+                // Show toast indicating folder change
+                Toast.makeText(this@PhotoView, 
+                    getString(R.string.slideshow_next_folder, nextAlbum.first.name), 
+                    Toast.LENGTH_SHORT).show()
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun showNextFolderPrompt() {
+        if (!isCrossFolderMode || currentAlbumIndex >= allAlbums.size - 1) {
+            return // No more folders available
+        }
+        
+        val nextAlbum = allAlbums[currentAlbumIndex + 1]
+        
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.continue_to_next_folder))
+            .setMessage(getString(R.string.reached_end_of_album, nextAlbum.first.name))
+            .setPositiveButton(getString(R.string.continue_button)) { _, _ ->
+                moveToNextFolder()
+            }
+            .setNegativeButton(getString(R.string.stay_here)) { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setCancelable(true)
+            .show()
     }
 
     override fun onPause() {

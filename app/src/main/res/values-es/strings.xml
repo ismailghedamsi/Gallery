@@ -60,4 +60,10 @@
     <string name="slideshow_resumed">Presentación reanudada</string>
     <string name="slideshow_completed">Presentación completada</string>
     <string name="slideshow_need_more_images">Se necesita más de una imagen para la presentación</string>
+    <string name="slideshow_next_folder">Siguiente carpeta: %s</string>
+    <string name="slideshow_all_folders_completed">Presentación completada - todas las carpetas vistas</string>
+    <string name="continue_to_next_folder">¿Continuar a la siguiente carpeta?</string>
+    <string name="reached_end_of_album">Has llegado al final de este álbum.\n\nContinuar a: %s</string>
+    <string name="continue_button">Continuar</string>
+    <string name="stay_here">Quedarse aquí</string>
 </resources>

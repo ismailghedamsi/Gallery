@@ -63,4 +63,10 @@
     <string name="slideshow_resumed">Slideshow resumed</string>
     <string name="slideshow_completed">Slideshow completed</string>
     <string name="slideshow_need_more_images">Need more than one image for slideshow</string>
+    <string name="slideshow_next_folder">Next folder: %s</string>
+    <string name="slideshow_all_folders_completed">Slideshow completed - all folders viewed</string>
+    <string name="continue_to_next_folder">Continue to Next Folder?</string>
+    <string name="reached_end_of_album">You\'ve reached the end of this album.\n\nContinue to: %s</string>
+    <string name="continue_button">Continue</string>
+    <string name="stay_here">Stay Here</string>
 </resources>
