@@ -207,7 +207,8 @@ class RecentFragment : Fragment() {
 
         super.onResume()
         lifecycleScope.launch(Dispatchers.IO) {
-            media = getAllImagesAndVideosSortedByRecent(requireContext())
+            // Use cached media loading for better performance
+            media = getCachedMediaOrLoad(requireContext())
 
             withContext(Dispatchers.Main) {
                 myAdapter = PhotoAdapter(media, builder) { show, items ->

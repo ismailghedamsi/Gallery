@@ -31,7 +31,8 @@ class AlbumsFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        albums = albumes!!
+        // Initialize empty albums - will be loaded lazily in onResume
+        albums = HashMap()
     }
 
     override fun onCreateView(
@@ -64,17 +65,24 @@ class AlbumsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        
+        // Load albums asynchronously without blocking UI
         lifecycleScope.launch(Dispatchers.IO) {
-
-            albums = sortImagesByFolder(getAllImages(requireContext())) as HashMap<File, List<File>>
+            // Check if we have cached albums data first
+            if (albumes != null && albumes!!.isNotEmpty()) {
+                albums = albumes!!
+            } else {
+                // Load fresh data only if needed
+                albums = sortImagesByFolder(getAllImages(requireContext())) as HashMap<File, List<File>>
+                // Cache the result for future use
+                albumes = albums
+            }
 
             withContext(Dispatchers.Main) {
                 if(albums.isNotEmpty()){
-                    albumAdapter = AlbumAdapter(builder)
                     albumAdapter.setItems(albums)
-                    recyclerView.swapAdapter(albumAdapter, false)
-
-                }else {
+                    albumAdapter.notifyDataSetChanged()
+                } else {
                     activity?.onBackPressedDispatcher?.onBackPressed()
                 }
             }

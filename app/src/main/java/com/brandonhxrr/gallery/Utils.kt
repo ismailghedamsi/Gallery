@@ -107,6 +107,48 @@ fun splitAlphaNumeric(input: String): List<String> {
     return result
 }
 
+// Natural sorting comparator specifically for folder names
+fun naturalFolderComparator(): Comparator<File> {
+    return Comparator { folder1, folder2 ->
+        val name1 = folder1.name
+        val name2 = folder2.name
+        
+        // Split folder names into alphanumeric parts
+        val parts1 = splitAlphaNumeric(name1)
+        val parts2 = splitAlphaNumeric(name2)
+        
+        val minLength = minOf(parts1.size, parts2.size)
+        
+        for (i in 0 until minLength) {
+            val part1 = parts1[i]
+            val part2 = parts2[i]
+            
+            val isNum1 = part1.all { it.isDigit() }
+            val isNum2 = part2.all { it.isDigit() }
+            
+            when {
+                isNum1 && isNum2 -> {
+                    // Compare as numbers, not strings
+                    val num1 = part1.toLongOrNull() ?: 0
+                    val num2 = part2.toLongOrNull() ?: 0
+                    val result = num1.compareTo(num2)
+                    if (result != 0) return@Comparator result
+                }
+                isNum1 && !isNum2 -> return@Comparator -1  // Numbers come before letters
+                !isNum1 && isNum2 -> return@Comparator 1   // Letters come after numbers
+                else -> {
+                    // Compare as strings (case-insensitive)
+                    val result = part1.compareTo(part2, ignoreCase = true)
+                    if (result != 0) return@Comparator result
+                }
+            }
+        }
+        
+        // If all compared parts are equal, shorter name comes first
+        parts1.size.compareTo(parts2.size)
+    }
+}
+
 fun getAllImages(context: Context): List<File> {
     val sortOrder = MediaStore.Images.Media.DATE_TAKEN + " ASC"
     val sortOrderVideos = MediaStore.Video.Media.DATE_TAKEN + " ASC"

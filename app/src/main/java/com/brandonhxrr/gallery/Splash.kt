@@ -62,8 +62,9 @@ open class Splash : AppCompatActivity() {
     }
 
     private fun loadData() {
-        val folders: HashMap<File, List<File>> = sortImagesByFolder(getAllImages(this)) as HashMap<File, List<File>>
-        albumes = folders
+        // Don't load all images at startup - this will be done lazily in fragments
+        // Just initialize the albums variable as null to signal lazy loading is needed
+        albumes = null
 
         // Check if we should auto-resume from last image
         if (shouldAutoResumeFromLastImage()) {

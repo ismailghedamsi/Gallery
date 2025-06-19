@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.RequestBuilder
+import com.brandonhxrr.gallery.naturalFolderComparator
 import java.io.File
 
 class AlbumAdapter(private val glide: RequestBuilder<Bitmap>) : RecyclerView.Adapter<AlbumViewHolder>() {
@@ -28,7 +29,7 @@ class AlbumAdapter(private val glide: RequestBuilder<Bitmap>) : RecyclerView.Ada
     //fun setItems(folders: List<File>) {
         items = fileMap
         //indexes = fileMap.keys.toList()//.sortedBy { t -> t.nameWithoutExtension }
-        indexes = fileMap.keys.toList().sortedBy { it.nameWithoutExtension }
+        indexes = fileMap.keys.toList().sortedWith(naturalFolderComparator())
         notifyDataSetChanged()
     }
 

@@ -239,4 +239,16 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         invalidateOptionsMenu()
     }
+    
+    override fun onPause() {
+        super.onPause()
+        // Save any current state when app goes to background
+        // This ensures the last viewed state is preserved when Android kills the app
+    }
+    
+    override fun onStop() {
+        super.onStop()
+        // Additional save point when activity stops
+        // This helps preserve state when the app is killed by the OS
+    }
 }

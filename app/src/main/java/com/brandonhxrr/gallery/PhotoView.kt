@@ -233,17 +233,51 @@ class PhotoView : AppCompatActivity() {
         return true
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Pause slideshow when activity is paused
+        if (isAutoScrolling) {
+            pauseSlideshow()
+        }
+        
+        // Save the last viewed image when app goes to background
+        // This is the most reliable point for saving state before the app might be killed
+        saveCurrentImageState()
+    }
+    
+    override fun onStop() {
+        super.onStop()
+        // onStop is called after onPause, so we only save if we haven't saved recently
+        // This prevents redundant saves while ensuring state is preserved
+        saveCurrentImageState()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        // Save the last viewed image if resume feature is enabled
-        // But only if we're not navigating back (to prevent re-opening the same image)
-        if (LastImagePreferences.isResumeEnabled(this) && !isNavigatingBack) {
-            LastImagePreferences.saveLastImage(this, currentFile.absolutePath, position)
-        }
         
         // If we're navigating back, clear the last image to prevent auto-resume
         if (isNavigatingBack) {
             LastImagePreferences.clearLastImage(this)
+        } else {
+            // Final save point - only if we haven't navigated back
+            saveCurrentImageState()
+        }
+    }
+    
+    private fun saveCurrentImageState() {
+        // Only save if resume is enabled and we're not navigating back
+        if (LastImagePreferences.isResumeEnabled(this) && !isNavigatingBack) {
+            val currentTimestamp = System.currentTimeMillis()
+            val lastSavedTimestamp = LastImagePreferences.getLastImageTimestamp(this)
+            
+            // Only save if it's been more than 1 second since last save to prevent excessive writes
+            // or if the image has changed
+            val lastSavedPath = LastImagePreferences.getLastImagePath(this)
+            val currentPath = currentFile.absolutePath
+            
+            if (currentTimestamp - lastSavedTimestamp > 1000 || lastSavedPath != currentPath) {
+                LastImagePreferences.saveLastImage(this, currentPath, position)
+            }
         }
     }
 
@@ -664,8 +698,8 @@ class PhotoView : AppCompatActivity() {
                 val albums = albumes ?: return@launch
                 val albumList = mutableListOf<Pair<File, List<Photo>>>()
                 
-                // Sort albums by name for consistent order
-                val sortedAlbums = albums.toSortedMap(compareBy { it.name })
+                // Sort albums by name using natural numeric ordering
+                val sortedAlbums = albums.toSortedMap(naturalFolderComparator())
                 
                 for ((folder, _) in sortedAlbums) {
                     val photosInAlbum = getImagesFromAlbum(folder.absolutePath)
@@ -744,11 +778,4 @@ class PhotoView : AppCompatActivity() {
             .show()
     }
 
-    override fun onPause() {
-        super.onPause()
-        // Pause slideshow when activity is paused
-        if (isAutoScrolling) {
-            pauseSlideshow()
-        }
-    }
 }

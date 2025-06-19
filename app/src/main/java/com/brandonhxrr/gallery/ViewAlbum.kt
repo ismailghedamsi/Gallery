@@ -172,8 +172,12 @@ class ViewAlbum : Fragment() {
     private fun initRecyclerView(context: Context) {
         recyclerView = binding.gridRecyclerView
 
+        // Use optimized Glide configuration for better performance
         val glide = Glide.with(this)
         builder = glide.asBitmap()
+            .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.ALL)
+            .format(com.bumptech.glide.load.DecodeFormat.PREFER_RGB_565)
+            .skipMemoryCache(false)
 
         media = getImagesFromAlbum(album.path)
 
@@ -183,7 +187,14 @@ class ViewAlbum : Fragment() {
 
         recyclerView.itemAnimator = DefaultItemAnimator()
         recyclerView.isNestedScrollingEnabled = false
-        recyclerView.layoutManager = GridLayoutManager(context, 3)
+        recyclerView.setHasFixedSize(true) // Performance optimization
+        recyclerView.setItemViewCacheSize(20) // Cache more items for smoother scrolling
+        
+        // Create optimized GridLayoutManager
+        val layoutManager = GridLayoutManager(context, 3)
+        layoutManager.initialPrefetchItemCount = 12 // Prefetch 12 items (4 rows)
+        recyclerView.layoutManager = layoutManager
+        
         recyclerView.adapter = myAdapter
         setUpPagination()
     }

@@ -16,7 +16,7 @@ import java.io.File
 
 class PhotoViewHolder(
     view: View,
-    val adapter: PhotoAdapter,
+    val adapter: Any, // Can be PhotoAdapter or OptimizedPhotoAdapter
     private val showDeleteMenu: (Boolean, Number) -> Unit
 ) : RecyclerView.ViewHolder(view) {
 
@@ -57,7 +57,10 @@ class PhotoViewHolder(
         image.setOnLongClickListener {
             if (itemsList.isEmpty()) {
                 dataList[photoModel.position].selected = true
-                adapter.setSelectedItem(photoModel.position)
+                when (adapter) {
+                    is PhotoAdapter -> adapter.setSelectedItem(photoModel.position)
+                    is OptimizedPhotoAdapter -> adapter.setSelectedItem(photoModel.position)
+                }
                 Glide.with(image.context).load(R.drawable.file_selected).into(fileSelected)
                 selectable = true
                 bindingAdapter?.notifyDataSetChanged()
@@ -92,11 +95,17 @@ class PhotoViewHolder(
 
             if (photoModel.selected) {
                 dataList[photoModel.position].selected = true
-                adapter.setSelectedItem(photoModel.position)
+                when (adapter) {
+                    is PhotoAdapter -> adapter.setSelectedItem(photoModel.position)
+                    is OptimizedPhotoAdapter -> adapter.setSelectedItem(photoModel.position)
+                }
                 Glide.with(image.context).load(R.drawable.file_selected).into(fileSelected)
             } else {
                 dataList[photoModel.position].selected = false
-                adapter.removeSelectedItem(photoModel.position)
+                when (adapter) {
+                    is PhotoAdapter -> adapter.removeSelectedItem(photoModel.position)
+                    is OptimizedPhotoAdapter -> adapter.removeSelectedItem(photoModel.position)
+                }
                 Glide.with(image.context).load(R.drawable.file_unselected).into(fileSelected)
             }
 
@@ -107,6 +116,15 @@ class PhotoViewHolder(
             } else {
                 showDeleteMenu(true, itemsList.size)
             }
+        }
+    }
+    
+    // Optimized method for partial updates (selection changes only)
+    fun updateSelection(photoModel: Photo) {
+        if (photoModel.selected) {
+            Glide.with(image.context).load(R.drawable.file_selected).into(fileSelected)
+        } else {
+            Glide.with(image.context).load(R.drawable.file_unselected).into(fileSelected)
         }
     }
 }
