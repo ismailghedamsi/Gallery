@@ -42,6 +42,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var shareButton: ImageButton
     private lateinit var intentSenderLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var deletedImageUri: Uri? = null
+    
+    // SAF folder picker launcher
+    private val safFolderPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            result.data?.data?.let { uri ->
+                handleFolderSelection(uri)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -154,6 +165,14 @@ class MainActivity : AppCompatActivity() {
                 resumeLastImage()
                 true
             }
+            R.id.menu_search -> {
+                openSearchActivity()
+                true
+            }
+            R.id.menu_folder_settings -> {
+                showFolderSettings()
+                true
+            }
             R.id.menu_settings -> {
                 showResumeSettings()
                 true
@@ -212,6 +231,96 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun openSearchActivity() {
+        val intent = Intent(this, SearchActivity::class.java)
+        startActivity(intent)
+    }
+    
+    private fun showFolderSettings() {
+        // Directly launch the folder picker without showing a dialog
+        launchFolderPicker()
+    }
+    
+    private fun launchFolderPicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        safFolderPickerLauncher.launch(intent)
+    }
+    
+    private fun handleFolderSelection(uri: Uri) {
+        val folderPath = SAFHelper.getFolderPathFromSAF(uri)
+        android.util.Log.d("FolderDebug", "SAF URI: $uri")
+        android.util.Log.d("FolderDebug", "Converted folder path: $folderPath")
+        
+        folderPath?.let {
+            android.util.Log.d("FolderDebug", "Processing folder: $it")
+            
+            // Clear previous selections and set new folder
+            FolderSelectionPreferences.setShowAllFolders(this, false)
+            FolderSelectionPreferences.setSelectedFolders(this, emptySet())
+            
+            // Add the selected folder and all its subfolders
+            addFolderAndSubfolders(it)
+            
+            // Clear cache and reload albums
+            albumes = null
+            
+            // Show confirmation
+            Toast.makeText(this, "Folder selected: ${File(it).name}", Toast.LENGTH_SHORT).show()
+            
+            // Restart activity to reload with new folder selection
+            recreate()
+        } ?: run {
+            android.util.Log.e("FolderDebug", "Could not convert SAF URI to folder path")
+            Toast.makeText(this, "Could not access selected folder", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun addFolderAndSubfolders(selectedFolderPath: String) {
+        val selectedFolder = File(selectedFolderPath)
+        val foldersToAdd = mutableSetOf<String>()
+        
+        android.util.Log.d("FolderDebug", "Adding folder and subfolders for: $selectedFolderPath")
+        android.util.Log.d("FolderDebug", "Folder exists: ${selectedFolder.exists()}")
+        android.util.Log.d("FolderDebug", "Folder is directory: ${selectedFolder.isDirectory}")
+        
+        // Add the selected folder itself
+        foldersToAdd.add(selectedFolderPath)
+        
+        // Add all subfolders recursively
+        addSubfoldersRecursively(selectedFolder, foldersToAdd)
+        
+        android.util.Log.d("FolderDebug", "Total folders added: ${foldersToAdd.size}")
+        foldersToAdd.forEach { folder ->
+            android.util.Log.d("FolderDebug", "Added folder: $folder")
+        }
+        
+        // Save all folders to preferences
+        FolderSelectionPreferences.setSelectedFolders(this, foldersToAdd)
+    }
+    
+    private fun addSubfoldersRecursively(folder: File, foldersSet: MutableSet<String>) {
+        try {
+            val subFiles = folder.listFiles()
+            android.util.Log.d("FolderDebug", "Scanning folder: ${folder.absolutePath}")
+            android.util.Log.d("FolderDebug", "Found ${subFiles?.size ?: 0} items")
+            
+            subFiles?.forEach { file ->
+                if (file.isDirectory) {
+                    android.util.Log.d("FolderDebug", "Found subfolder: ${file.absolutePath}")
+                    foldersSet.add(file.absolutePath)
+                    // Recursively add subfolders
+                    addSubfoldersRecursively(file, foldersSet)
+                }
+            }
+        } catch (e: SecurityException) {
+            android.util.Log.e("FolderDebug", "Security exception accessing folder: ${folder.absolutePath} - ${e.message}")
+        } catch (e: Exception) {
+            android.util.Log.e("FolderDebug", "Error accessing folder: ${folder.absolutePath} - ${e.message}")
+        }
+    }
+    
     private fun showResumeSettings() {
         val view = layoutInflater.inflate(android.R.layout.simple_list_item_multiple_choice, null)
         val checkBox = CheckBox(this)

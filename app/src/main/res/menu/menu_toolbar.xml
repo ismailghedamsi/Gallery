@@ -8,10 +8,21 @@
         app:showAsAction="ifRoom"
         android:enabled="true" />
     <item
+        android:id="@+id/menu_search"
+        android:title="Search"
+        android:icon="@drawable/ic_search"
+        app:showAsAction="ifRoom" />
+    
+    <item
+        android:id="@+id/menu_folder_settings"
+        android:title="@string/switch_folder"
+        app:showAsAction="never" />
+        
+    <item
         android:id="@+id/menu_settings"
         android:title="@string/settings"
         android:icon="@drawable/ic_settings"
-        app:showAsAction="never"
+        app:showAsAction="ifRoom"
         android:enabled="true" />
 </menu>
 

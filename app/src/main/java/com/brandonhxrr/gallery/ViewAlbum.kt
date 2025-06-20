@@ -143,6 +143,9 @@ class ViewAlbum : Fragment() {
         }
 
         selectableToolbar.inflateMenu(R.menu.menu_selectable_album)
+        
+        // Enable options menu for this fragment
+        setHasOptionsMenu(true)
 
         return binding.root
     }
@@ -423,6 +426,27 @@ class ViewAlbum : Fragment() {
             showDeleteMenu(show, items)
         }
         recyclerView.swapAdapter(myAdapter, false)
+    }
+    
+    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+        inflater.inflate(R.menu.menu_album, menu)
+        super.onCreateOptionsMenu(menu, inflater)
+    }
+    
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.menu_search_album -> {
+                openAlbumSearch()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+    
+    private fun openAlbumSearch() {
+        val intent = Intent(requireContext(), SearchActivity::class.java)
+        intent.putExtra("album_path", album.path)
+        startActivity(intent)
     }
 
 }
